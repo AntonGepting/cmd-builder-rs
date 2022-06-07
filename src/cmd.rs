@@ -8,6 +8,7 @@ use std::process::Command;
 pub struct Cmd<'a> {
     pub envs: Option<Vec<Cow<'a, str>>>,
     pub name: Cow<'a, str>,
+    //alias
     pub flags_short: Option<String>,
     pub args: Option<Vec<Cow<'a, str>>>,
     pub cmds: Option<CmdList<'a>>,
@@ -27,6 +28,7 @@ impl<'a> Cmd<'a> {
         Cmd::default()
     }
 
+    // XXX: rename new()
     pub fn with_name<T: Into<Cow<'a, str>>>(name: T) -> Self {
         Cmd {
             name: name.into(),
@@ -77,14 +79,17 @@ impl<'a> Cmd<'a> {
     //self
     //}
 
+    // env(key, val)
+    // envs(iterator)
     pub fn to_command(&self) -> Command {
         let mut command = Command::new(self.name.as_ref());
 
-        //command.envs
-        //if let Some(env) = &self.env {
-        //command.envs();
+        //if let Some(envs) = &self.envs {
+        //for env in envs {
+        //command.env(env.as_ref());
         //}
-        //
+        //}
+
         if let Some(args) = &self.args {
             for arg in args {
                 command.arg(arg.as_ref());
@@ -92,6 +97,7 @@ impl<'a> Cmd<'a> {
         }
 
         if let Some(cmds) = &self.cmds {
+            //command.args(cmds) // XXX: iterator?
             for arg in cmds.to_vec() {
                 command.arg(arg.as_ref());
             }
