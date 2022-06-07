@@ -1,23 +1,23 @@
-use crate::{Arg, ArgList, CmdList};
+use crate::CmdList;
 
-//use std::borrow::Cow;
-use std::collections::HashMap;
+use std::borrow::Cow;
 use std::fmt;
 use std::process::Command;
 
 #[derive(Default, Clone, Debug)]
 pub struct Cmd<'a> {
-    pub env: Option<HashMap<&'a str, &'a str>>,
-    pub name: &'a str,
-    pub flags: Option<Vec<char>>,
-    pub args: Option<ArgList<'a>>,
+    pub envs: Option<Vec<Cow<'a, str>>>,
+    pub name: Cow<'a, str>,
+    pub flags_short: Option<String>,
+    pub args: Option<Vec<Cow<'a, str>>>,
     pub cmds: Option<CmdList<'a>>,
+    pub separator: Option<&'a str>,
 }
 
 impl<'a> fmt::Display for Cmd<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let v = self.to_vec();
-        let s = v.join(" ");
+        let s = v.join(self.separator.unwrap_or(" "));
         write!(f, "{}", s)
     }
 }
@@ -27,9 +27,9 @@ impl<'a> Cmd<'a> {
         Cmd::default()
     }
 
-    pub fn with_name(name: &'a str) -> Self {
+    pub fn with_name<T: Into<Cow<'a, str>>>(name: T) -> Self {
         Cmd {
-            name: name,
+            name: name.into(),
             ..Default::default()
         }
     }
@@ -39,67 +39,83 @@ impl<'a> Cmd<'a> {
         self
     }
 
-    pub fn flag1(&mut self, c: char) -> &mut Self {
-        self.flags.get_or_insert(Vec::new()).push(c);
+    pub fn flag_short(&mut self, c: char) -> &mut Self {
+        self.flags_short.get_or_insert(String::new()).push(c);
         self
     }
 
-    pub fn flag(&mut self, short: &'a str) -> &mut Self {
-        self.arg(Arg::flag(short));
+    pub fn arg<T, U>(&mut self, flag: T, opt: U) -> &mut Self
+    where
+        T: Into<Cow<'a, str>>,
+        U: Into<Cow<'a, str>>,
+    {
+        let v = self.args.get_or_insert(Vec::new());
+        v.push(flag.into());
+        v.push(opt.into());
         self
     }
 
     // XXX: -> &mut Self, or Self
-    pub fn opt(&mut self, short: &'a str, opt: &'a str) -> &mut Self {
-        self.arg(Arg::opt(short, opt));
+    pub fn opt<T, U>(&mut self, short: T, opt: U) -> &mut Self
+    where
+        T: Into<Cow<'a, str>>,
+        U: Into<Cow<'a, str>>,
+    {
+        let v = self.args.get_or_insert(Vec::new());
+        v.push(short.into());
+        v.push(opt.into());
         self
     }
 
-    pub fn param(&mut self, param: &'a str) -> &mut Self {
-        self.arg(Arg::param(param));
+    pub fn param<T: Into<Cow<'a, str>>>(&mut self, param: T) -> &mut Self {
+        self.args.get_or_insert(Vec::new()).push(param.into());
         self
     }
 
-    pub fn arg(&mut self, arg: Arg<'a>) -> &mut Self {
-        self.args.get_or_insert(ArgList::new()).push(arg);
-        self
-    }
+    //pub fn arg(&mut self, arg: &'a str) -> &mut Self {
+    //self.args.get_or_insert(Vec::new()).push(arg);
+    //self
+    //}
 
     pub fn to_command(&self) -> Command {
-        let mut command = Command::new(self.name);
+        let mut command = Command::new(self.name.as_ref());
 
         //command.envs
         //if let Some(env) = &self.env {
         //command.envs();
         //}
-
+        //
         if let Some(args) = &self.args {
-            command.args(args.to_vec());
+            for arg in args {
+                command.arg(arg.as_ref());
+            }
         }
 
         if let Some(cmds) = &self.cmds {
-            command.args(cmds.to_vec());
+            for arg in cmds.to_vec() {
+                command.arg(arg.as_ref());
+            }
         }
 
         command
     }
 
-    pub fn to_vec(&self) -> Vec<&'a str> {
-        let mut v = Vec::new();
+    pub fn to_vec(&self) -> Vec<Cow<'a, str>> {
+        let mut v: Vec<Cow<'a, str>> = Vec::new();
 
-        v.push(self.name);
+        v.push(self.name.clone());
 
-        //if let Some(flags) = &self.flags {
-        //v.extend(flags);
-        //}
-
-        if let Some(cmds) = &self.cmds {
-            v.extend(&cmds.to_vec());
+        if let Some(flags_short) = &self.flags_short {
+            v.push(Cow::Owned(format!("-{}", flags_short)));
         }
 
-        //if let Some(args) = &self.args {
-        //v.extend(&args.to_vec());
-        //}
+        if let Some(args) = &self.args {
+            v.extend(args.to_vec());
+        }
+
+        if let Some(cmds) = &self.cmds {
+            v.extend(cmds.to_vec());
+        }
 
         v
     }

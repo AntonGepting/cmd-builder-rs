@@ -1,4 +1,5 @@
 use crate::cmd::Cmd;
+use std::borrow::Cow;
 use std::fmt;
 use std::process::Command;
 
@@ -42,7 +43,7 @@ impl<'a> CmdList<'a> {
     }
 
     //
-    pub fn to_vec(&self) -> Vec<&'a str> {
+    pub fn to_vec(&self) -> Vec<Cow<'a, str>> {
         let mut v = Vec::new();
 
         let len = self.cmds.len();
@@ -51,7 +52,7 @@ impl<'a> CmdList<'a> {
 
             if let Some(separator) = self.separator {
                 if i < len - 1 {
-                    v.push(separator);
+                    v.push(Cow::Borrowed(separator));
                 }
             }
         }
