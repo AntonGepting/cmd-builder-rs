@@ -6,9 +6,9 @@ use std::process::Command;
 
 #[derive(Default, Clone, Debug)]
 pub struct Cmd<'a> {
-    pub envs: Option<Vec<Cow<'a, str>>>,
+    pub envs: Option<Vec<(Cow<'a, str>, Cow<'a, str>)>>,
     pub name: Cow<'a, str>,
-    //alias
+    pub alias: Option<Cow<'a, str>>,
     pub flags_short: Option<String>,
     pub args: Option<Vec<Cow<'a, str>>>,
     pub cmds: Option<CmdList<'a>>,
@@ -46,6 +46,17 @@ impl<'a> Cmd<'a> {
         self
     }
 
+    pub fn env<T, U>(&mut self, key: T, value: U) -> &mut Self
+    where
+        T: Into<Cow<'a, str>>,
+        U: Into<Cow<'a, str>>,
+    {
+        self.envs
+            .get_or_insert(Vec::new())
+            .push((key.into(), value.into()));
+        self
+    }
+
     pub fn arg<T, U>(&mut self, flag: T, opt: U) -> &mut Self
     where
         T: Into<Cow<'a, str>>,
@@ -79,28 +90,23 @@ impl<'a> Cmd<'a> {
     //self
     //}
 
-    // env(key, val)
-    // envs(iterator)
     pub fn to_command(&self) -> Command {
         let mut command = Command::new(self.name.as_ref());
 
-        //if let Some(envs) = &self.envs {
-        //for env in envs {
-        //command.env(env.as_ref());
-        //}
-        //}
-
-        if let Some(args) = &self.args {
-            for arg in args {
-                command.arg(arg.as_ref());
-            }
+        if let Some(envs) = &self.envs {
+            command.envs(
+                envs.iter()
+                    .map(|(key, value)| (key.as_ref(), value.as_ref())),
+            );
         }
 
+        if let Some(args) = &self.args {
+            command.args(args.iter().map(|arg| arg.as_ref()));
+        }
+
+        // additional commands
         if let Some(cmds) = &self.cmds {
-            //command.args(cmds) // XXX: iterator?
-            for arg in cmds.to_vec() {
-                command.arg(arg.as_ref());
-            }
+            command.args(cmds.to_vec().iter().map(|arg| arg.as_ref()));
         }
 
         command
@@ -108,6 +114,12 @@ impl<'a> Cmd<'a> {
 
     pub fn to_vec(&self) -> Vec<Cow<'a, str>> {
         let mut v: Vec<Cow<'a, str>> = Vec::new();
+
+        if let Some(envs) = &self.envs {
+            for (key, value) in envs {
+                v.push(Cow::Owned(format!("{}={}", key, value)));
+            }
+        }
 
         v.push(self.name.clone());
 
@@ -174,6 +186,7 @@ fn tmux_test() {
     tmux.cmd(Cmd::with_name("list-commands"));
     tmux.cmd(Cmd::with_name("list-commands"));
 
+    tmux.env("ENVVAR", "EN");
     //tmux.cmd(Cmd::with_name("list-commands"));
     //tmux.cmd(Cmd::with_name("list-commands"));
     //tmux.cmd(Cmd::with_name("list-commands"));
