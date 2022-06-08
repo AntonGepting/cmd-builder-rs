@@ -7,7 +7,7 @@ use std::process::Command;
 #[derive(Default, Clone, Debug)]
 pub struct Cmd<'a> {
     pub envs: Option<Vec<(Cow<'a, str>, Cow<'a, str>)>>,
-    pub name: Cow<'a, str>,
+    pub name: Option<Cow<'a, str>>,
     pub alias: Option<Cow<'a, str>>,
     pub flags_short: Option<String>,
     pub args: Option<Vec<Cow<'a, str>>>,
@@ -31,7 +31,7 @@ impl<'a> Cmd<'a> {
     // XXX: rename new()
     pub fn with_name<T: Into<Cow<'a, str>>>(name: T) -> Self {
         Cmd {
-            name: name.into(),
+            name: Some(name.into()),
             ..Default::default()
         }
     }
@@ -91,7 +91,8 @@ impl<'a> Cmd<'a> {
     //}
 
     pub fn to_command(&self) -> Command {
-        let mut command = Command::new(self.name.as_ref());
+        let name = self.name.as_ref().unwrap_or(&Cow::Borrowed(""));
+        let mut command = Command::new(name.as_ref());
 
         if let Some(envs) = &self.envs {
             command.envs(
@@ -121,7 +122,9 @@ impl<'a> Cmd<'a> {
             }
         }
 
-        v.push(self.name.clone());
+        if let Some(name) = &self.name {
+            v.push(name.to_owned());
+        }
 
         if let Some(flags_short) = &self.flags_short {
             v.push(Cow::Owned(format!("-{}", flags_short)));

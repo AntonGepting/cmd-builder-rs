@@ -94,6 +94,7 @@ fn cmds_list() {
     cmds.push(
         Cmd::with_name("new-session")
             .opt("n", "session_name")
+            .env("ENVVAR", "EN")
             .to_owned(),
     );
     cmds.push(
