@@ -1,22 +1,16 @@
+// XXX: name command-string-builder?
+// XXX: name command-line-builder?
+//
+/// Wrapper for preparing data for [`std::process::Command`]
+///
+///
+/// [`Cmd`]
+/// [`CmdList`] - Wrapper around [`Vec<Cmd>`]
 pub mod cmd;
 pub mod cmd_list;
 
+pub mod cmd_list_tests;
+pub mod cmd_tests;
+
 pub use crate::cmd::Cmd;
 pub use crate::cmd_list::CmdList;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
-
-#[test]
-fn cmd_test() {
-    use crate::cmd::Cmd;
-
-    let cmd = Cmd::new();
-    dbg!(&cmd);
-}

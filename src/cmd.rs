@@ -1,31 +1,72 @@
-use crate::CmdList;
-
+use super::CmdList;
 use std::borrow::Cow;
 use std::fmt;
-use std::process::Command;
+use std::io::Error;
+use std::process::{Child, Command, ExitStatus, Output, Stdio};
 
-#[derive(Default, Clone, Debug)]
+const EMPTY_CMD: &str = "";
+const CMD_ARG_SEPARATOR: &str = " ";
+
+/// Standard command line arguments syntax:
+///
+/// ```text
+/// # name   short flags   long flags        option     parameter  subcommand
+/// command [-abcdefghij] [--longflag] [--] [-o value] [param]    [subcommand [...]]
+/// ```
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Cmd<'a> {
+    /// environment variables
     pub envs: Option<Vec<(Cow<'a, str>, Cow<'a, str>)>>,
+
+    /// command name
     pub name: Option<Cow<'a, str>>,
+
+    /// command alias
     pub alias: Option<Cow<'a, str>>,
+
+    // XXX: remove
+    /// flags (`[-a] [-b] [-c]`)
+    pub flags: Option<Vec<Cow<'a, str>>>,
+
+    /// short flags (`[-a] [-b] [-c]`)
     pub flags_short: Option<String>,
+
+    /// arguments: long flags, options, parameters (`[--longflag] [-o opt] [param]`)
     pub args: Option<Vec<Cow<'a, str>>>,
-    pub cmds: Option<CmdList<'a>>,
+
+    /// subcommands list
+    pub subcommands: Option<CmdList<'a>>,
+
+    // XXX: Cow<'a, str> or &'a str?
+    /// separator between command and it's flags, args, subcommand (" ")
     pub separator: Option<&'a str>,
+
+    // XXX: Cow<'a, str> or &'a str?
+    /// flags, args separator (usually double dash `--`)
+    pub flags_args_separator: Option<&'a str>,
+
+    /// do not combine multiple single flags into flags line, use them separately (`-f -a` = `-fa`)
+    pub not_combine_short_flags: bool,
+
+    /// do not use command alias, use name instead (`new-session` = `new`)
+    pub not_use_alias: bool,
 }
 
+// XXX: reason?
+//macro_rules! tmux_command!("env", "cmd", "-a", "-b", "-arg 0", "param")
+
 impl<'a> fmt::Display for Cmd<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let v = self.to_vec();
-        let s = v.join(self.separator.unwrap_or(" "));
-        write!(f, "{}", s)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let output = self
+            .to_vec()
+            .join(self.separator.unwrap_or(CMD_ARG_SEPARATOR));
+        write!(f, "{}", output)
     }
 }
 
 impl<'a> Cmd<'a> {
-    pub fn new() -> Cmd<'a> {
-        Cmd::default()
+    pub fn new() -> Self {
+        Default::default()
     }
 
     // XXX: rename new()
@@ -36,14 +77,31 @@ impl<'a> Cmd<'a> {
         }
     }
 
-    pub fn cmd(&mut self, cmd: Cmd<'a>) -> &mut Self {
-        self.cmds.get_or_insert(CmdList::new()).push(cmd);
+    /// set command name
+    pub fn name<S: Into<Cow<'a, str>>>(&mut self, cmd: S) -> &mut Self {
+        self.name = Some(cmd.into());
         self
     }
 
-    pub fn flag_short(&mut self, c: char) -> &mut Self {
-        self.flags_short.get_or_insert(String::new()).push(c);
-        self
+    /// run command
+    pub fn output(&self) -> Result<Output, Error> {
+        let mut command = Command::from(self);
+        // NOTE: inherit stdin to prevent tmux fail with error `terminal failed: not a terminal`
+        command.stdin(Stdio::inherit());
+        let output = command.output()?;
+        Ok(output)
+    }
+
+    // XXX: really necessary?
+    pub fn spawn(&self) -> Result<Child, Error> {
+        let mut command = Command::from(self);
+        Ok(command.spawn()?)
+    }
+
+    // XXX: really necessary?
+    pub fn status(&self) -> Result<ExitStatus, Error> {
+        let mut command = Command::from(self);
+        Ok(command.status()?)
     }
 
     pub fn env<T, U>(&mut self, key: T, value: U) -> &mut Self
@@ -54,6 +112,49 @@ impl<'a> Cmd<'a> {
         self.envs
             .get_or_insert(Vec::new())
             .push((key.into(), value.into()));
+        self
+    }
+
+    // XXX: hard bound to cmd_args
+    // if vec doesn't exist, creates it and appends with given arguments
+    /// push a single flag (`-x`)
+    pub fn push_flag<S: Into<Cow<'a, str>>>(&mut self, flag: S) -> &mut Self {
+        self.args.get_or_insert(Vec::new()).push(flag.into());
+        self
+    }
+
+    pub fn push_flag_short(&mut self, flag: char) -> &mut Self {
+        self.flags_short.get_or_insert(String::new()).push(flag);
+        self
+    }
+
+    // if vec doesn't exist, creates it and appends with given arguments
+    /// push an option, flag and value (`-x  <VALUE>`)
+    pub fn push_option<U, V>(&mut self, key: U, option: V) -> &mut Self
+    where
+        U: Into<Cow<'a, str>>,
+        V: Into<Cow<'a, str>>,
+    {
+        self.args
+            .get_or_insert(Vec::new())
+            .extend_from_slice(&[key.into(), option.into()]);
+        self
+    }
+
+    // if vec doesn't exist, creates it and appends with given arguments
+    /// push a single parameter (`<VALUE>`)
+    pub fn push_param<S: Into<Cow<'a, str>>>(&mut self, param: S) -> &mut Self {
+        self.args.get_or_insert(Vec::new()).push(param.into());
+        self
+    }
+
+    pub fn push_cmd(&mut self, cmd: Cmd<'a>) -> &mut Self {
+        self.subcommands.get_or_insert(CmdList::new()).push(cmd);
+        self
+    }
+
+    pub fn push_cmds(&mut self, cmdlist: CmdList<'a>) -> &mut Self {
+        self.subcommands = Some(cmdlist);
         self
     }
 
@@ -90,6 +191,49 @@ impl<'a> Cmd<'a> {
     //self
     //}
 
+    // TODO: custom command
+    //pub fn custom<S: Into<Cow<'a, str>>>(&self, ) -> &mut Self {
+    //}
+
+    //// create `std::process::Command` from `Self` (consuming `Self`)
+    //pub fn to_command(&self) -> Command {
+    //Command::from(self)
+    //}
+
+    pub fn to_vec(&self) -> Vec<Cow<'a, str>> {
+        let mut v: Vec<Cow<'a, str>> = Vec::new();
+
+        if let Some(envs) = &self.envs {
+            for (key, value) in envs {
+                v.push(Cow::Owned(format!("{}={}", key, value)));
+            }
+        }
+
+        if let Some(cmd) = &self.name {
+            v.push(cmd.to_owned());
+        }
+
+        if let Some(flags_short) = &self.flags_short {
+            if self.not_combine_short_flags {
+                for c in flags_short.chars() {
+                    v.push(Cow::Owned(format!("-{}", c)));
+                }
+            } else {
+                v.push(Cow::Owned(format!("-{}", flags_short)));
+            }
+        }
+
+        if let Some(args) = &self.args {
+            v.extend(args.to_vec());
+        }
+
+        if let Some(cmds) = &self.subcommands {
+            v.extend(cmds.to_vec());
+        }
+
+        v
+    }
+
     pub fn to_command(&self) -> Command {
         let name = self.name.as_ref().unwrap_or(&Cow::Borrowed(""));
         let mut command = Command::new(name.as_ref());
@@ -106,41 +250,31 @@ impl<'a> Cmd<'a> {
         }
 
         // additional commands
-        if let Some(cmds) = &self.cmds {
+        if let Some(cmds) = &self.subcommands {
             command.args(cmds.to_vec().iter().map(|arg| arg.as_ref()));
         }
 
         command
     }
 
-    pub fn to_vec(&self) -> Vec<Cow<'a, str>> {
-        let mut v: Vec<Cow<'a, str>> = Vec::new();
+    //pub fn into_tmux_command(self) -> TmuxCommand<'a> {
+    //TmuxCommand::default()
+    //}
 
-        if let Some(envs) = &self.envs {
-            for (key, value) in envs {
-                v.push(Cow::Owned(format!("{}={}", key, value)));
-            }
-        }
+    //pub fn into_tmux_bin_command_ext(self, tmux: TmuxBin<'a>) -> TmuxBinCommand<'a> {
+    //TmuxBinCommand {
+    //tmux: tmux,
+    //command: self,
+    //}
+    //}
 
-        if let Some(name) = &self.name {
-            v.push(name.to_owned());
-        }
+    //pub fn append_to(self, cmds: &mut TmuxCommands<'a>) {
+    //cmds.push(self);
+    //}
 
-        if let Some(flags_short) = &self.flags_short {
-            v.push(Cow::Owned(format!("-{}", flags_short)));
-        }
-
-        if let Some(args) = &self.args {
-            v.extend(args.to_vec());
-        }
-
-        if let Some(cmds) = &self.cmds {
-            v.extend(cmds.to_vec());
-        }
-
-        v
-    }
-
+    //pub fn writeln(self, stdin: &mut ChildStdin) -> Result<(), std::io::Error> {
+    //writeln!(stdin, "{}", self.to_string())
+    //}
     //pub fn into_vec(self) -> Vec<&'a str> {
     //let mut v = Vec::new();
 
@@ -167,57 +301,89 @@ impl<'a> Cmd<'a> {
     //v
     //}
 }
-//#[test]
-//fn git_test() {
-//use crate::cmd::Cmd;
 
-//let mut git = Cmd::with_name("git");
-//git.cmd(Cmd::with_name("status"));
-//git.flag("a");
-//git.flag("b");
-//let v = git.to_vec();
+// create ready to exec [`std::process::Command`]
+// * create [`std::process::Command`]
+// * push environment variables
+// * push binary arguments
+// * push subcommand
+impl<'a> From<&Cmd<'a>> for Command {
+    fn from(cmd: &Cmd) -> Self {
+        // user given command or blank command
+        let name = cmd.name.as_ref().unwrap_or(&Cow::Borrowed(EMPTY_CMD));
+        let mut command = Command::new(name.as_ref());
 
-//dbg!(v);
-//}
+        // environment variables
+        if let Some(envs) = &cmd.envs {
+            command.envs(
+                envs.iter()
+                    .map(|(key, value)| (key.as_ref(), value.as_ref())),
+            );
+        }
 
-#[test]
-fn tmux_test() {
-    use crate::cmd::Cmd;
+        // arguments
+        if let Some(args) = &cmd.args {
+            command.args(args.iter().map(|arg| arg.as_ref()));
+        }
 
-    let mut tmux = Cmd::with_name("tmux");
-    tmux.cmd(Cmd::with_name("list-commands"));
-    tmux.cmd(Cmd::with_name("list-commands"));
-    tmux.cmd(Cmd::with_name("list-commands"));
+        // subcommands
+        if let Some(cmds) = &cmd.subcommands {
+            command.args(cmds.to_vec().iter().map(|arg| arg.as_ref()));
+        }
 
-    tmux.env("ENVVAR", "EN");
-    //tmux.cmd(Cmd::with_name("list-commands"));
-    //tmux.cmd(Cmd::with_name("list-commands"));
-    //tmux.cmd(Cmd::with_name("list-commands"));
-    let v = tmux.to_vec();
-
-    dbg!(&v);
-
-    dbg!(&tmux);
-    let s = tmux.to_string();
-    dbg!(&s);
-}
-
-#[test]
-fn cow_test<'a>() {
-    use std::borrow::Cow;
-
-    let mut v: Vec<Cow<'a, str>> = Vec::new();
-
-    let mut a: Vec<Cow<'a, str>> = Vec::new();
-    a.push(Cow::Borrowed("asdf"));
-
-    let mut b: Vec<Cow<'a, str>> = Vec::new();
-    b.push(Cow::Owned("asdf".to_string()));
-
-    v.extend(a);
-    v.extend(b);
-
-    for a in v {
-        println!("{}", a);
+        command
     }
 }
+
+// create ready to exec [`std::process::Command`]
+// * create [`std::process::Command`]
+// * push environment variables
+// * push binary arguments
+// * push subcommand
+impl<'a> From<Cmd<'a>> for Command {
+    fn from(cmd: Cmd) -> Self {
+        Command::from(&cmd)
+    }
+}
+
+/* NOTE: from bin
+    /// Returns mutable reference to tmux executable name `Cow<'a, str>`
+    ///
+    /// # Examples
+    /// ```
+    /// use std::borrow::Cow;
+    /// use tmux_interface::commands::tmux_bin::TmuxBin;
+    ///
+    /// let mut tmux = TmuxBin::default();
+    /// let bin = tmux.bin();
+    /// assert_eq!(bin, &Cow::Borrowed("tmux"));
+    /// ```
+    pub fn bin(&self) -> &Cow<'a, str> {
+        &self.bin
+    }
+
+    /// Returns mutable reference to tmux executable name `Cow<'a, str>`
+    ///
+    /// # Examples
+    /// ```
+    /// use std::borrow::Cow;
+    /// use tmux_interface::commands::tmux_bin::TmuxBin;
+    ///
+    /// let mut tmux = TmuxBin::default();
+    /// *tmux.bin_mut() = Cow::Borrowed("/usr/bin/tmux");
+    /// assert_eq!(tmux.bin, Cow::Borrowed("/usr/bin/tmux"));
+    /// ```
+    /// or
+    /// ```
+    /// use std::borrow::Cow;
+    /// use tmux_interface::commands::tmux_bin::TmuxBin;
+    ///
+    /// let mut tmux = TmuxBin::default();
+    /// *tmux.bin_mut() = "/usr/bin/tmux".into();
+    /// assert_eq!(tmux.bin, Cow::Borrowed("/usr/bin/tmux"));
+    /// ```
+    pub fn bin_mut(&mut self) -> &mut Cow<'a, str> {
+        &mut self.bin
+    }
+
+*/

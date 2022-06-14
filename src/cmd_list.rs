@@ -1,48 +1,64 @@
-use crate::cmd::Cmd;
+use super::Cmd;
 use std::borrow::Cow;
 use std::fmt;
-use std::process::Command;
+use std::io::Error;
+use std::process::{Command, Output};
 
-#[derive(Default, Clone, Debug)]
+/// command separator [^f1]
+///
+/// [^f1] "...Each command is terminated by a newline or a semicolon (;) Commands separated by
+/// semicolons together form a ‘command sequence’ - if a command in the sequence encounters an
+/// error, no subsequent commands are executed..."
+/// [[tmux manual](https://man7.org/linux/man-pages/man1/tmux.1.html#COMMAND_PARSING_AND_EXECUTION)]
+
+// TODO: rename TERMINATOR
+//const CMDS_SEPARATOR: &str = "\\;";
+//const CMDS_SEPARATOR: &str = "\n";
+const CMDS_SEPARATOR: &str = ";";
+const CMD_SEPARATOR: &str = " ";
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CmdList<'a> {
     pub cmds: Vec<Cmd<'a>>,
-    // custom separator
-    pub separator: Option<&'a str>,
+
+    // XXX: Cow<'a, str> or &'a str?
+    pub separator: Option<Cow<'a, str>>,
 }
 
 impl<'a> fmt::Display for CmdList<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = self.to_vec().join(" ");
-        write!(f, "{}", s)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        //let separator = self.separator.as_ref().unwrap_or(&Cow::Borrowed(" "));
+        //let output = self.to_vec().join(separator.as_ref());
+        let output = self.to_vec().join(CMD_SEPARATOR);
+        write!(f, "{}", output)
+    }
+}
+
+impl<'a> Default for CmdList<'a> {
+    fn default() -> Self {
+        Self {
+            cmds: Vec::new(),
+            separator: Some(Cow::Borrowed(CMDS_SEPARATOR)),
+        }
     }
 }
 
 impl<'a> CmdList<'a> {
     pub fn new() -> Self {
-        CmdList {
-            cmds: Vec::new(),
-            separator: Some(";"),
-        }
+        Self::default()
     }
 
-    pub fn separator(&mut self, separator: &'a str) -> &mut Self {
-        self.separator = Some(separator);
-        self
-    }
-
-    pub fn get_separator(&self) -> Option<&'a str> {
-        self.separator
-    }
-
+    // XXX: -> Self?
     pub fn push(&mut self, cmd: Cmd<'a>) {
         self.cmds.push(cmd);
     }
 
-    pub fn into_cmds(self) -> Vec<Cmd<'a>> {
-        self.cmds
+    pub fn cmd(mut self, cmd: Cmd<'a>) -> Self {
+        self.cmds.push(cmd);
+        self
     }
 
-    //
+    // XXX: mb use in display trait?
     pub fn to_vec(&self) -> Vec<Cow<'a, str>> {
         let mut v = Vec::new();
 
@@ -50,9 +66,10 @@ impl<'a> CmdList<'a> {
         for (i, cmd) in self.cmds.iter().enumerate() {
             v.extend(cmd.to_vec());
 
-            if let Some(separator) = self.separator {
+            if let Some(separator) = &self.separator {
                 if i < len - 1 {
-                    v.push(Cow::Borrowed(separator));
+                    v.push(separator.clone());
+                    //v.push(Cow::Borrowed(separator));
                 }
             }
         }
@@ -66,6 +83,56 @@ impl<'a> CmdList<'a> {
             v.push(cmd.to_command());
         }
         v
+    }
+
+    pub fn output(self) -> Vec<Result<Output, Error>> {
+        let mut v = Vec::new();
+
+        for cmd in self.cmds {
+            v.push(cmd.output())
+        }
+
+        v
+    }
+
+    // NOTE: from bin
+    // XXX: error out
+    //pub fn output(&self) -> Result<TmuxOutput, Error> {
+
+    //let mut command = Command::new(&self.tmux.bin.as_ref());
+
+    //for tmux_command in &self.cmds.0 {
+    //if let Some(cmd) = &tmux_command.cmd {
+    //command.arg(cmd.as_ref());
+    //}
+
+    //if let Some(args) = &tmux_command.args {
+    //for arg in args {
+    //command.arg(arg.as_ref());
+    //}
+    //}
+
+    //command.arg(";");
+    //}
+
+    // NOTE: inherit stdin to prevent tmux fail with error `terminal failed: not a terminal`
+    //command.stdin(Stdio::inherit());
+
+    //let output = command.output()?;
+
+    //Ok(TmuxOutput(output))
+    //}
+    pub fn separator<S: Into<Cow<'a, str>>>(&mut self, separator: S) -> &mut Self {
+        self.separator = Some(separator.into());
+        self
+    }
+
+    pub fn get_separator(&self) -> Option<&Cow<'a, str>> {
+        self.separator.as_ref()
+    }
+
+    pub fn into_cmds(self) -> Vec<Cmd<'a>> {
+        self.cmds
     }
 
     //pub fn into_vec(self) -> Vec<&'a str> {
@@ -84,30 +151,4 @@ impl<'a> CmdList<'a> {
 
     //v
     //}
-}
-
-#[test]
-fn cmds_list() {
-    use crate::{Cmd, CmdList};
-
-    let mut cmds = CmdList::new();
-    cmds.push(
-        Cmd::with_name("new-session")
-            .opt("n", "session_name")
-            .env("ENVVAR", "EN")
-            .to_owned(),
-    );
-    cmds.push(
-        Cmd::with_name("has-session")
-            .opt("t", "session_name")
-            .to_owned(),
-    );
-    cmds.push(
-        Cmd::with_name("kill-session")
-            .opt("t", "session_name")
-            .to_owned(),
-    );
-
-    dbg!(cmds.to_vec());
-    dbg!(cmds.to_string());
 }
