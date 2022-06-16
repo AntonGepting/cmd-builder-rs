@@ -21,7 +21,7 @@ const CMD_ARG_SEPARATOR: &str = " ";
 /// # name   short flags   long flags        option     parameter  subcommand
 /// command [-abcdefghij] [--longflag] [--] [-o value] [param]    [subcommand [...]]
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Cmd<'a> {
     /// environment variables
     pub envs: Option<Vec<(Cow<'a, str>, Cow<'a, str>)>>,

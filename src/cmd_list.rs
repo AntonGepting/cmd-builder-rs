@@ -16,7 +16,7 @@ use std::process::Command;
 const CMDS_SEPARATOR: &str = ";";
 const CMD_SEPARATOR: &str = " ";
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct CmdList<'a> {
     pub commands: Vec<Cmd<'a>>,
 
