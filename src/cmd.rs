@@ -58,17 +58,6 @@ pub struct Cmd<'a> {
 
     /// do not use command alias, use name instead (`new-session` = `new`)
     pub not_use_alias: bool,
-    //pub env_remove: Option<Vec<Cow<'a, str>>>,
-
-    //pub env_clear: bool,
-
-    //pub stdin: Option<Stdio>,
-
-    //pub stdout: Option<Stdio>,
-
-    //pub stderr: Option<Stdio>,
-
-    //pub current_dir: Option<Cow<'a, str>>,
 }
 
 // XXX: reason?
@@ -102,27 +91,6 @@ impl<'a> Cmd<'a> {
         self
     }
 
-    // run command
-    //pub fn output(&self) -> Result<Output, Error> {
-    //let mut command = Command::from(self);
-    //// NOTE: inherit stdin to prevent tmux fail with error `terminal failed: not a terminal`
-    //command.stdin(Stdio::inherit());
-    //let output = command.output()?;
-    //Ok(output)
-    //}
-
-    // XXX: really necessary?
-    //pub fn spawn(&self) -> Result<Child, Error> {
-    //let mut command = Command::from(self);
-    //Ok(command.spawn()?)
-    //}
-
-    // XXX: really necessary?
-    //pub fn status(&self) -> Result<ExitStatus, Error> {
-    //let mut command = Command::from(self);
-    //Ok(command.status()?)
-    //}
-
     pub fn env<T, U>(&mut self, key: T, value: U) -> &mut Self
     where
         T: Into<Cow<'a, str>>,
@@ -133,36 +101,6 @@ impl<'a> Cmd<'a> {
             .push((key.into(), value.into()));
         self
     }
-
-    // XXX: really necessary?
-    //pub fn stdin<T: Into<Stdio>>(&mut self, stdin: T) -> &mut Self {
-    //self.stdin = Some(stdin.into());
-    //self
-    //}
-
-    //// XXX: really necessary?
-    //pub fn stdout<T: Into<Stdio>>(&mut self, stdout: T) -> &mut Self {
-    //self.stdout = Some(stdout.into());
-    //self
-    //}
-
-    //// XXX: really necessary?
-    //pub fn stderr<T: Into<Stdio>>(&mut self, stderr: T) -> &mut Self {
-    //self.stderr = Some(stderr.into());
-    //self
-    //}
-
-    //// XXX: really necessary?
-    //pub fn env_remove<S: Into<Cow<'a, str>>>(&mut self, key: S) -> &mut Self {
-    //self.env_remove.get_or_insert(Vec::new()).push(key.into());
-    //self
-    //}
-
-    //// XXX: really necessary?
-    //pub fn current_dir<S: Into<Cow<'a, str>>>(&mut self, current_dir: S) -> &mut Self {
-    //self.current_dir = Some(current_dir.into());
-    //self
-    //}
 
     // XXX: hard bound to cmd_args
     // if vec doesn't exist, creates it and appends with given arguments

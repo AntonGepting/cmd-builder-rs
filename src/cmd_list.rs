@@ -86,43 +86,6 @@ impl<'a> CmdList<'a> {
         v
     }
 
-    //pub fn output(self) -> Vec<Result<Output, Error>> {
-    //let mut v = Vec::new();
-
-    //for command in self.commands {
-    //v.push(command.output())
-    //}
-
-    //v
-    //}
-
-    // NOTE: from bin
-    // XXX: error out
-    //pub fn output(&self) -> Result<TmuxOutput, Error> {
-
-    //let mut command = Command::new(&self.tmux.bin.as_ref());
-
-    //for tmux_command in &self.commands.0 {
-    //if let Some(cmd) = &tmux_command.cmd {
-    //command.arg(cmd.as_ref());
-    //}
-
-    //if let Some(args) = &tmux_command.args {
-    //for arg in args {
-    //command.arg(arg.as_ref());
-    //}
-    //}
-
-    //command.arg(";");
-    //}
-
-    // NOTE: inherit stdin to prevent tmux fail with error `terminal failed: not a terminal`
-    //command.stdin(Stdio::inherit());
-
-    //let output = command.output()?;
-
-    //Ok(TmuxOutput(output))
-    //}
     pub fn separator<S: Into<Cow<'a, str>>>(&mut self, separator: S) -> &mut Self {
         self.separator = Some(separator.into());
         self
