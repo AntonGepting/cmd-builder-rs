@@ -234,12 +234,17 @@ impl<'a> Cmd<'a> {
             }
         }
 
+        // XXX: ugly
         if self.not_use_alias {
             if let Some(name) = &self.name {
                 v.push(name.to_owned());
             }
-        } else if let Some(alias) = &self.alias {
-            v.push(alias.to_owned());
+        } else {
+            if let Some(alias) = &self.alias {
+                v.push(alias.to_owned());
+            } else if let Some(name) = &self.name {
+                v.push(name.to_owned());
+            }
         }
 
         if let Some(flags_short) = &self.flags_short {
