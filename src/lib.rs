@@ -20,7 +20,7 @@
 //! ## Example
 //!
 //! ```
-//! use cmd::Cmd;
+//! use cmd_builder::Cmd;
 //!
 //! let mut cmd = Cmd::with_name("git");
 //! cmd.env("LANGUAGE", "en_US.UTF-8");
