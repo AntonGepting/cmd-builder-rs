@@ -3,7 +3,7 @@
 
 //! # `Cmd`
 //!
-//! `Cmd` library containin few functions for building command line for later use with
+//! `Cmd` library contains functions for building command line for later use with
 //! [`std::process::Command`]
 //!
 //! ## Input
@@ -12,8 +12,7 @@
 //!
 //! ## Output
 //!
-//! * [`Command`][`std::process::Command`] - structure, generated using
-//! [`Command::new()`][`std::process::Command::new()`]
+//! * [`Command`][`std::process::Command`] - structure, generated using [`Command::new()`][`std::process::Command::new()`]
 //! * [`Vec<Cow<'a, str>>`][`Vec`] - vector containing all commands and parameters with separators as elements
 //! * [`String`] - string containing full command line
 //!

@@ -67,10 +67,14 @@ impl<'a> fmt::Display for Cmd<'a> {
 }
 
 impl<'a> Cmd<'a> {
+    /// Create new `Cmd` structure (using `default()` method)
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Create new `Cmd` structure, initialize both `not_combine_short_flags` and `not_use_alias`
+    /// fields with `true`. Command will not combine flags (separate flags will be used instead),
+    /// and not use alias (command name will be used instead)
     pub fn new_full<S: Into<Cow<'a, str>>>(name: S) -> Self {
         Cmd {
             name: Some(name.into()),
@@ -80,6 +84,7 @@ impl<'a> Cmd<'a> {
         }
     }
 
+    /// Create and set `Cmd.name` field
     pub fn with_name<S: Into<Cow<'a, str>>>(name: S) -> Self {
         Cmd {
             name: Some(name.into()),
@@ -87,17 +92,27 @@ impl<'a> Cmd<'a> {
         }
     }
 
-    /// set command name
+    /// Create and set `Cmd.alias` field
+    pub fn with_alias<S: Into<Cow<'a, str>>>(alias: S) -> Self {
+        Cmd {
+            alias: Some(alias.into()),
+            ..Default::default()
+        }
+    }
+
+    /// Set `Cmd.name` field
     pub fn name<S: Into<Cow<'a, str>>>(&mut self, cmd: S) -> &mut Self {
         self.name = Some(cmd.into());
         self
     }
 
+    /// Set `Cmd.alias` field
     pub fn alias<S: Into<Cow<'a, str>>>(&mut self, alias: S) -> &mut Self {
         self.alias = Some(alias.into());
         self
     }
 
+    /// Add an environment variable to `Cmd.env`
     pub fn env<T, U>(&mut self, key: T, value: U) -> &mut Self
     where
         T: Into<Cow<'a, str>>,
@@ -182,11 +197,13 @@ impl<'a> Cmd<'a> {
         self
     }
 
+    /// Set `Cmd.not_combine_short_flags` to `true`
     pub fn not_combine_short_flags(&mut self) -> &mut Self {
         self.not_combine_short_flags = true;
         self
     }
 
+    /// Set `Cmd.not_use_alias` to `true`
     pub fn not_use_alias(&mut self) -> &mut Self {
         self.not_use_alias = true;
         self
@@ -206,6 +223,8 @@ impl<'a> Cmd<'a> {
     //Command::from(self)
     //}
 
+    // NOTE: can't be consuming `to_vec(self)`, borrowing used in `fmt(&self)`
+    /// Transform `Cmd` to `Vec<Cow<'a, str>>`
     pub fn to_vec(&self) -> Vec<Cow<'a, str>> {
         let mut v: Vec<Cow<'a, str>> = Vec::new();
 
@@ -215,8 +234,12 @@ impl<'a> Cmd<'a> {
             }
         }
 
-        if let Some(cmd) = &self.name {
-            v.push(cmd.to_owned());
+        if self.not_use_alias {
+            if let Some(name) = &self.name {
+                v.push(name.to_owned());
+            }
+        } else if let Some(alias) = &self.alias {
+            v.push(alias.to_owned());
         }
 
         if let Some(flags_short) = &self.flags_short {
@@ -240,6 +263,7 @@ impl<'a> Cmd<'a> {
         v
     }
 
+    /// Transform `Cmd` into [`std::process::Command`]
     pub fn to_command(self) -> Command {
         let name = self.name.as_ref().unwrap_or(&Cow::Borrowed(""));
         let mut command = Command::new(name.as_ref());
