@@ -14,13 +14,6 @@ const CMD_ARG_SEPARATOR: &str = " ";
 // output:
 // .to_vec() -> vec![command, arg1, arg2, ... arg3, subcommand1, ..., subcommand2 ...]
 // .to_string() -> "command arg1 arg ... arg3 subcommand1 ... ; subcommand2 ...";
-
-/// Standard command line arguments syntax:
-///
-/// ```text
-/// # name   short flags   long flags        option     parameter  subcommand
-/// command [-abcdefghij] [--longflag] [--] [-o value] [param]    [subcommand [...]]
-/// ```
 #[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Cmd<'a> {
     /// environment variables
@@ -78,6 +71,15 @@ impl<'a> Cmd<'a> {
         Default::default()
     }
 
+    pub fn new_full<S: Into<Cow<'a, str>>>(name: S) -> Self {
+        Cmd {
+            name: Some(name.into()),
+            not_combine_short_flags: true,
+            not_use_alias: true,
+            ..Default::default()
+        }
+    }
+
     pub fn with_name<S: Into<Cow<'a, str>>>(name: S) -> Self {
         Cmd {
             name: Some(name.into()),
@@ -88,6 +90,11 @@ impl<'a> Cmd<'a> {
     /// set command name
     pub fn name<S: Into<Cow<'a, str>>>(&mut self, cmd: S) -> &mut Self {
         self.name = Some(cmd.into());
+        self
+    }
+
+    pub fn alias<S: Into<Cow<'a, str>>>(&mut self, alias: S) -> &mut Self {
+        self.alias = Some(alias.into());
         self
     }
 
@@ -135,11 +142,13 @@ impl<'a> Cmd<'a> {
         self
     }
 
+    // XXX: rename subcmd?
     pub fn push_cmd(&mut self, cmd: Cmd<'a>) -> &mut Self {
         self.subcommands.get_or_insert(CmdList::new()).push(cmd);
         self
     }
 
+    // XXX: rename subcmd?
     pub fn push_cmds(&mut self, cmdlist: CmdList<'a>) -> &mut Self {
         self.subcommands = Some(cmdlist);
         self
@@ -170,6 +179,16 @@ impl<'a> Cmd<'a> {
 
     pub fn param<T: Into<Cow<'a, str>>>(&mut self, param: T) -> &mut Self {
         self.args.get_or_insert(Vec::new()).push(param.into());
+        self
+    }
+
+    pub fn not_combine_short_flags(&mut self) -> &mut Self {
+        self.not_combine_short_flags = true;
+        self
+    }
+
+    pub fn not_use_alias(&mut self) -> &mut Self {
+        self.not_use_alias = true;
         self
     }
 
