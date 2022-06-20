@@ -20,6 +20,26 @@ fn cmds_list() {
             .to_owned(),
     );
 
-    dbg!(cmds.to_vec());
-    dbg!(cmds.to_string());
+    assert_eq!(
+        cmds.to_vec(),
+        vec![
+            "ENVVAR=EN",
+            "new-session",
+            "-n",
+            "session_name",
+            ";",
+            "has-session",
+            "-t",
+            "session_name",
+            ";",
+            "kill-session",
+            "-t",
+            "session_name"
+        ]
+    );
+
+    assert_eq!(
+        cmds.to_string(),
+        "ENVVAR=EN new-session -n session_name ; has-session -t session_name ; kill-session -t session_name"
+    );
 }
