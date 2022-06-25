@@ -115,8 +115,12 @@
 pub mod cmd;
 pub mod cmd_list;
 
-pub mod cmd_list_tests;
-pub mod cmd_tests;
+#[cfg(test)]
+#[path = "."]
+mod cmd_builder_test {
+    mod cmd_list_tests;
+    mod cmd_tests;
+}
 
 pub use crate::cmd::Cmd;
 pub use crate::cmd_list::CmdList;
