@@ -6,6 +6,8 @@ use std::process::Command;
 const EMPTY_CMD: &str = "";
 const CMD_ARG_SEPARATOR: &str = " ";
 
+// NOTE: compile time or runtime for shortcuts (alias vs name, combined flags vs separate flags)
+//
 // mod
 //
 // input:
@@ -14,7 +16,7 @@ const CMD_ARG_SEPARATOR: &str = " ";
 // output:
 // .to_vec() -> vec![command, arg1, arg2, ... arg3, subcommand1, ..., subcommand2 ...]
 // .to_string() -> "command arg1 arg ... arg3 subcommand1 ... ; subcommand2 ...";
-#[derive(Debug, Default, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Cmd<'a> {
     /// environment variables
     pub envs: Option<Vec<(Cow<'a, str>, Cow<'a, str>)>>,
@@ -46,11 +48,29 @@ pub struct Cmd<'a> {
     /// flags, args separator (usually double dash `--`)
     pub flags_args_separator: Option<&'a str>,
 
-    /// do not combine multiple single flags into flags line, use them separately (`-f -a` = `-fa`)
-    pub not_combine_short_flags: bool,
+    /// combine multiple single flags into flags line (`-f -a` = `-fa`)
+    pub combine_short_flags: bool,
 
-    /// do not use command alias, use name instead (`new-session` = `new`)
-    pub not_use_alias: bool,
+    /// use command alias instead of name (`new-session` = `new`)
+    pub use_alias: bool,
+}
+
+impl<'a> Default for Cmd<'a> {
+    fn default() -> Self {
+        Cmd {
+            envs: None,
+            name: None,
+            alias: None,
+            flags: None,
+            flags_short: None,
+            args: None,
+            subcommands: None,
+            separator: None,
+            flags_args_separator: None,
+            combine_short_flags: true,
+            use_alias: true,
+        }
+    }
 }
 
 // XXX: reason?
@@ -78,8 +98,8 @@ impl<'a> Cmd<'a> {
     pub fn new_full<S: Into<Cow<'a, str>>>(name: S) -> Self {
         Cmd {
             name: Some(name.into()),
-            not_combine_short_flags: true,
-            not_use_alias: true,
+            combine_short_flags: true,
+            use_alias: true,
             ..Default::default()
         }
     }
@@ -197,15 +217,35 @@ impl<'a> Cmd<'a> {
         self
     }
 
-    /// Set `Cmd.not_combine_short_flags` to `true`
-    pub fn not_combine_short_flags(&mut self) -> &mut Self {
-        self.not_combine_short_flags = true;
+    /// Set `Cmd.combine_short_flags` to `true`
+    pub fn combine_short_flags(&mut self) -> &mut Self {
+        self.combine_short_flags = true;
         self
     }
 
-    /// Set `Cmd.not_use_alias` to `true`
+    pub fn not_combine_short_flags(&mut self) -> &mut Self {
+        self.combine_short_flags = false;
+        self
+    }
+
+    pub fn combine_short_flags_ext(&mut self, state: bool) -> &mut Self {
+        self.combine_short_flags = state;
+        self
+    }
+
+    /// Set `Cmd.use_alias` to `true`
+    pub fn use_alias(&mut self) -> &mut Self {
+        self.use_alias = true;
+        self
+    }
+
     pub fn not_use_alias(&mut self) -> &mut Self {
-        self.not_use_alias = true;
+        self.use_alias = false;
+        self
+    }
+
+    pub fn use_alias_ext(&mut self, state: bool) -> &mut Self {
+        self.use_alias = state;
         self
     }
 
@@ -235,25 +275,25 @@ impl<'a> Cmd<'a> {
         }
 
         // XXX: ugly
-        if self.not_use_alias {
-            if let Some(name) = &self.name {
-                v.push(name.to_owned());
-            }
-        } else {
+        if self.use_alias {
             if let Some(alias) = &self.alias {
                 v.push(alias.to_owned());
             } else if let Some(name) = &self.name {
                 v.push(name.to_owned());
             }
+        } else {
+            if let Some(name) = &self.name {
+                v.push(name.to_owned());
+            }
         }
 
         if let Some(flags_short) = &self.flags_short {
-            if self.not_combine_short_flags {
+            if self.combine_short_flags {
+                v.push(Cow::Owned(format!("-{}", flags_short)));
+            } else {
                 for c in flags_short.chars() {
                     v.push(Cow::Owned(format!("-{}", c)));
                 }
-            } else {
-                v.push(Cow::Owned(format!("-{}", flags_short)));
             }
         }
 
