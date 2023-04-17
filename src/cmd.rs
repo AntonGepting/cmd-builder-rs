@@ -98,8 +98,8 @@ impl<'a> Cmd<'a> {
     pub fn new_full<S: Into<Cow<'a, str>>>(name: S) -> Self {
         Cmd {
             name: Some(name.into()),
-            combine_short_flags: true,
-            use_alias: true,
+            combine_short_flags: false,
+            use_alias: false,
             ..Default::default()
         }
     }
@@ -116,6 +116,13 @@ impl<'a> Cmd<'a> {
     pub fn with_alias<S: Into<Cow<'a, str>>>(alias: S) -> Self {
         Cmd {
             alias: Some(alias.into()),
+            ..Default::default()
+        }
+    }
+
+    pub fn with_cmds(cmdlist: CmdList<'a>) -> Self {
+        Cmd {
+            subcommands: Some(cmdlist),
             ..Default::default()
         }
     }
@@ -234,6 +241,7 @@ impl<'a> Cmd<'a> {
     }
 
     /// Set `Cmd.use_alias` to `true`
+    // XXX: Remove, replace?
     pub fn use_alias(&mut self) -> &mut Self {
         self.use_alias = true;
         self
